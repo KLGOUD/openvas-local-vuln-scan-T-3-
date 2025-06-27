@@ -1,181 +1,214 @@
-# 🛡️ Local Vulnerability Assessment using OpenVAS on Kali Linux VM
+# 🛡️ Local Vulnerability Assessment using OpenVAS on Kali Linux (VM)
 
 ## 🎯 Objective
-In this project, I performed a full vulnerability assessment on my local Kali Linux machine using **OpenVAS / Greenbone Vulnerability Management (GVM)**. I documented every step, issue faced, and how I resolved it.
+
+Perform a full vulnerability assessment on your local Kali Linux machine using **Greenbone/OpenVAS (GVM)** and document all encountered issues, resolutions, and outcomes.
 
 ---
 
 ## 🧰 Tools Used
-- Kali Linux (VM on Windows)
-- Greenbone Vulnerability Management (GVM)
-- Firefox browser for accessing GSA web interface
+
+* Kali Linux (Virtual Machine on Windows)
+* OpenVAS / Greenbone Vulnerability Management (GVM)
+* Firefox browser
 
 ---
 
-## 🛠️ Step-by-Step Setup
+## 🛠️ Installation & Setup Steps
 
-### Step 1: Install GVM
+### Step 1: Install GVM and Dependencies
+
 ```bash
 sudo apt update && sudo apt install -y gvm
-✅ Step 2: System Clean and Full Upgrade
-bash
-Copy code
+```
+
+### Step 2: Clean, Update, and Upgrade
+
+```bash
 sudo apt clean
 sudo apt update
 sudo apt full-upgrade -y
-⚠️ I faced a GPG key error related to a missing public key.
-🔧 I fixed it with:
+```
 
-bash
-Copy code
+> ⚠️ Encountered Issue: GPG error with missing key `827C8569F2518CC677FECA1AED65462EC8D5E4C5`.
+>
+> ✅ Fix: Add missing key and update again:
+
+```bash
 sudo gpg --recv-keys 827C8569F2518CC677FECA1AED65462EC8D5E4C5
 sudo apt update
-✅ Step 3: PostgreSQL Version Mismatch
-GVM expected PostgreSQL 17, but my system had version 16 by default.
+```
 
-🔍 Checked clusters:
+### Step 3: Install PostgreSQL 17
 
-bash
-Copy code
-pg_lsclusters
-⚙️ I upgraded using:
+```bash
+sudo apt install postgresql-17
+```
 
-bash
-Copy code
+> ⚠️ GVM expected PostgreSQL 17, but system default was 16.
+>
+> ✅ Fix: Use `pg_upgradecluster` to upgrade:
+
+```bash
 sudo pg_upgradecluster 16 main
 sudo systemctl restart postgresql
-Now version 17 runs on port 5433, which is what libgvmd needs.
+```
 
-✅ Step 4: GVM Setup
-bash
-Copy code
+### Step 4: Setup GVM
+
+```bash
 sudo gvm-setup
-⚠️ I faced feed download timeouts (SCAP/CERT) during this step.
+```
 
-🔄 Re-ran:
+> ⚠️ Feed download timeout issue with SCAP and CERT.
+>
+> ✅ Fix: Rerun until completed:
 
-bash
-Copy code
+```bash
 sudo greenbone-feed-sync --type scap
 sudo greenbone-feed-sync --type cert
-✅ Step 5: Check Configuration
-bash
-Copy code
+sudo greenbone-feed-sync --type gvmd_data
+```
+
+> 🔁 Sometimes encountered: `/var/lib/gvm/feed-update.lock is locked by another process`
+>
+> ✅ Wait and retry or remove lock:
+
+```bash
+sudo rm /var/lib/gvm/feed-update.lock
+```
+
+### Step 5: Check Setup Status
+
+```bash
 sudo gvm-check-setup
-🧪 This checks if all components (scanners, feeds, certificates, PostgreSQL, services) are set up properly.
+```
 
-✅ Step 6: Fixing "No Users" or "Login Failed" Errors
-Initially, I wasn’t able to log in and user list showed empty.
+> ✅ Ensures all services, users, feeds, and permissions are set.
 
-🔄 So I created a new user and password:
+---
 
-bash
-Copy code
+## 🧑‍💻 User Creation & Fixes
+
+### Create Admin User & Set Password
+
+```bash
 sudo gvmd --create-user=admin
 sudo gvmd --user=admin --new-password='gvm@123'
-🧾 Verified user:
+```
 
-bash
-Copy code
+### Check Existing Users
+
+```bash
 sudo runuser -u _gvm -- gvmd --get-users
-If users still didn’t appear, I restarted and rebuilt:
+```
 
-bash
-Copy code
+> ⚠️ Issue: `--get-users` returned nothing initially.
+>
+> ✅ Fix: Restart services and rebuild data:
+
+```bash
 sudo gvm-stop
+sudo gvm-start
 sudo runuser -u _gvm -- gvmd --rebuild
-sudo gvm-start
-✅ Step 7: Start and Check All Services
-bash
-Copy code
-sudo gvm-start
-Verified:
+```
 
-bash
-Copy code
+---
+
+## 🔌 Starting GVM Services
+
+```bash
+sudo gvm-start
+```
+
+> ✅ Verify:
+
+```bash
 sudo systemctl status gvmd
 sudo systemctl status gsad
 sudo systemctl status ospd-openvas
-✅ Step 8: Access Web Interface
-Opened Firefox and navigated to:
+```
 
-cpp
-Copy code
+Open Firefox and go to:
+
+```
 https://127.0.0.1:9392
-⚠️ Faced SSL Warning — I clicked Advanced > Accept the risk.
+```
 
-🔐 Login:
+> ⚠️ SSL Warning → Click "Advanced" > Accept risk.
 
-makefile
-Copy code
+Login with:
+
+```
 Username: admin
 Password: gvm@123
-⚠️ Error: No Scan Configs Available
-After logging in, I got this error:
+```
 
-❌ “No Scan Configs available” or “Failed to find config”
+---
 
-🔧 I fixed it by syncing the missing gvmd_data:
+## ⚠️ Scan Config Issue and Fix
 
-bash
-Copy code
+> ⚠️ Error: `No Scan Configs available` or `Failed to find config`
+
+### Fix:
+
+```bash
 sudo greenbone-feed-sync --type gvmd_data
 sudo runuser -u _gvm -- gvmd --rebuild
 sudo gvm-stop && sudo gvm-start
-🧪 Checked if scan configs appeared:
+```
 
-bash
-Copy code
+Check again:
+
+```bash
 sudo runuser -u _gvm -- gvmd --get-configs
-✅ Step 9: Create and Run a Vulnerability Scan
-Navigate to: Scans > Tasks > New Task
+```
 
-Task Name: Localhost Scan
+Once you see scan configs like `Full and fast`, `Base`, `Host Discovery`, you're ready.
 
-Target: 127.0.0.1
+---
 
-Scan Config: Full and fast
+## ✅ Scan Creation Steps
 
-Click Save, then Start the task
+1. Navigate to **Scans > Tasks > New Task**
+2. Enter:
 
-💡 Learnings & Outcome
-Understood end-to-end setup of GVM / OpenVAS on Kali
+   * **Name:** Localhost Scan
+   * **Target:** 127.0.0.1 (Create new target if not existing)
+   * **Scan Config:** Full and fast
+3. Click **Save** and then **Start** scan
 
-Troubleshot PostgreSQL version issues
+> ⚠️ I initially couldn't see the green running bar or scan configs — had to wait for all feeds to finish syncing and show under Scan Configs tab.
 
-Fixed feed-sync timeout and scan config problems
+> ✅ Once scan started, results were visible in green with report links.
 
-Learned to use gvmd, manage users, and check services
+---
 
-Successfully performed a vulnerability scan on localhost
+## 🧪 Task-Level Errors (Ongoing Work)
 
-📌 Final Tips
-Some feed downloads may take 30–60+ minutes
+* Encountered feed rebuild error: `A feed sync is already running. Failed to rebuild NVT cache.`
 
-Use sudo gvm-check-setup often to identify and fix issues
+  * Still investigating if it’s a background sync delay or needs manual termination.
 
-If services or users are missing, restart and rebuild using:
+---
 
-bash
-Copy code
-sudo gvm-stop
-sudo runuser -u _gvm -- gvmd --rebuild
-sudo gvm-start
-📷 Optional: Add Screenshots to Repository
-Login screen
+## 📝 Outcome & Learnings
 
-Feed sync progress
+* I now understand how to set up, troubleshoot, and perform vulnerability assessments with OpenVAS.
+* Fixed PostgreSQL version conflicts, feed sync issues, user creation errors.
+* Still monitoring the feed rebuild error during concurrent syncs.
 
-Scan task created
+---
 
-Vulnerability scan results
+## 📌 Final Note
 
-This was a great learning experience and helped me understand the core of how vulnerability management systems work under the hood.
+This project helped me gain deep understanding of how vulnerability scanning works on Linux systems. It took multiple trials, error fixes, and restarts to get things right — all of which added to my learning.
 
+---
 
-
-
-
+**Author:** Latha Kola
+**Status:** 🛠️ *Working on Task Feed Sync Bug*
+**Last Updated:** June 27, 2025
 
 
 
